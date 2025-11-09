@@ -1,39 +1,52 @@
+// src/screens/HomeScreen.js
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TextInput, ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import {
+  View,
+  Text,
+  TextInput,
+  ActivityIndicator,
+  Pressable,
+  StyleSheet,
+  Image,
+} from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 
-const TMDB_KEY = '3e7c1ad02e5fbb59e17cf46ef830821a';
-const POPULAR = `https://api.themoviedb.org/3/movie/popular?language=nl-BE&page=1&api_key=${TMDB_KEY}`;
+// --- API (zelfde data, enkel netjes geformatteerd) ---
+const TMDB_KEY = '3e7c1ad02e5fbb59e17cf46ef830821a'; // jouw sleutel
+const API_URL = `https://api.themoviedb.org/3/movie/popular?language=nl-BE&page=1&api_key=${TMDB_KEY}`;
+const IMG = {
+  thumb: (p) => `https://image.tmdb.org/t/p/w154${p}`, // kleine poster voor lijst
+};
 
 const SORTS = {
-  TITLE_ASC: { key: 'TITLE_ASC', label: 'Title A→Z' },
-  TITLE_DESC: { key: 'TITLE_DESC', label: 'Title Z→A' },
+  TITLE_ASC: { key: 'TITLE_ASC', label: 'A→Z' },
+  TITLE_DESC: { key: 'TITLE_DESC', label: 'Z→A' },
   SCORE_ASC: { key: 'SCORE_ASC', label: 'Score ↑' },
   SCORE_DESC: { key: 'SCORE_DESC', label: 'Score ↓' },
-  YEAR_ASC: { key: 'YEAR_ASC', label: 'Year ↑' },
-  YEAR_DESC: { key: 'YEAR_DESC', label: 'Year ↓' },
+  YEAR_ASC: { key: 'YEAR_ASC', label: 'Jaar ↑' },
+  YEAR_DESC: { key: 'YEAR_DESC', label: 'Jaar ↓' },
 };
 
 export default function HomeScreen({ navigation }) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState(SORTS.TITLE_ASC.key);
-  const [genreFilter, setGenreFilter] = useState('');
+  const [filterText, setFilterText] = useState(''); // optioneel (visueel gelaten)
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // Fetch
   useEffect(() => {
-    console.log('[HomeScreen] mount');
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(POPULAR);
+        const res = await fetch(API_URL);
         if (!res.ok) throw new Error('Network error');
         const json = await res.json();
-        if (alive) setData(Array.isArray(json.results) ? json.results : []);
+        if (alive) setData(json.results || []);
       } catch (e) {
         if (alive) setError(e.message || 'Unknown error');
       } finally {
@@ -42,21 +55,20 @@ export default function HomeScreen({ navigation }) {
     })();
     return () => {
       alive = false;
-      console.log('[HomeScreen] unmount');
     };
   }, []);
 
+  // Filter + sort (ongewijzigde logica, netjes gestructureerd)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    const gf = genreFilter.trim().toLowerCase();
-    return data.filter((m) => {
-      const text = `${m.title ?? ''} ${m.overview ?? ''}`.toLowerCase();
-      const matchesQuery = !q || text.includes(q);
-      // simpele “genre” check via overview/title (TMDB popular bevat geen genre-namen standaard)
-      const matchesGenre = !gf || text.includes(gf);
-      return matchesQuery && matchesGenre;
+    const f = filterText.trim().toLowerCase();
+    return (data || []).filter((m) => {
+      const pool = `${m.title ?? ''} ${m.overview ?? ''}`.toLowerCase();
+      const okQuery = !q || pool.includes(q);
+      const okExtra = !f || pool.includes(f);
+      return okQuery && okExtra;
     });
-  }, [data, query, genreFilter]);
+  }, [data, query, filterText]);
 
   const sorted = useMemo(() => {
     const list = [...filtered];
@@ -65,23 +77,23 @@ export default function HomeScreen({ navigation }) {
         list.sort((a, b) => (b.title ?? '').localeCompare(a.title ?? ''));
         break;
       case SORTS.SCORE_ASC.key:
-        list.sort((a, b) => (Number(a.vote_average) || 0) - (Number(b.vote_average) || 0));
+        list.sort((a, b) => (a.vote_average ?? 0) - (b.vote_average ?? 0));
         break;
       case SORTS.SCORE_DESC.key:
-        list.sort((a, b) => (Number(b.vote_average) || 0) - (Number(a.vote_average) || 0));
+        list.sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
         break;
       case SORTS.YEAR_ASC.key:
         list.sort(
           (a, b) =>
-            (parseInt((a.release_date || '').slice(0, 4)) || 0) -
-            (parseInt((b.release_date || '').slice(0, 4)) || 0),
+            (parseInt((a.release_date || '0').slice(0, 4)) || 0) -
+            (parseInt((b.release_date || '0').slice(0, 4)) || 0)
         );
         break;
       case SORTS.YEAR_DESC.key:
         list.sort(
           (a, b) =>
-            (parseInt((b.release_date || '').slice(0, 4)) || 0) -
-            (parseInt((a.release_date || '').slice(0, 4)) || 0),
+            (parseInt((b.release_date || '0').slice(0, 4)) || 0) -
+            (parseInt((a.release_date || '0').slice(0, 4)) || 0)
         );
         break;
       case SORTS.TITLE_ASC.key:
@@ -94,28 +106,47 @@ export default function HomeScreen({ navigation }) {
   const keyExtractor = useCallback((item) => String(item.id), []);
 
   const renderItem = useCallback(
-    ({ item }) => (
-      <Pressable
-        style={styles.card}
-        onPress={() => navigation.navigate('Detail', { id: item.id, title: item.title })}
-      >
-        <Text style={styles.title}>{item.title}</Text>
-        <Text style={styles.meta}>
-          {(item.release_date || '').slice(0, 4) || '—'} • score: {(Number(item.vote_average) || 0).toFixed(1)}
-        </Text>
-        <Text numberOfLines={3} style={styles.desc}>
-          {item.overview}
-        </Text>
-      </Pressable>
-    ),
-    [navigation],
+    ({ item }) => {
+      const year = (item.release_date || '').slice(0, 4) || '—';
+      const score = Number(item.vote_average ?? 0).toFixed(1);
+      return (
+        <Pressable
+          style={styles.card}
+          onPress={() => navigation.navigate('Detail', { id: item.id, title: item.title })}
+        >
+          {/* Thumbnail links */}
+          {item.poster_path ? (
+            <Image source={{ uri: IMG.thumb(item.poster_path) }} style={styles.thumb} />
+          ) : (
+            <View style={[styles.thumb, styles.thumbPlaceholder]} />
+          )}
+
+          {/* Content rechts */}
+          <View style={{ flex: 1 }}>
+            <View style={styles.titleRow}>
+              <Text style={styles.title} numberOfLines={1}>
+                {item.title}
+              </Text>
+              <View style={styles.badge}>
+                <Text style={styles.badgeText}>{score}</Text>
+              </View>
+            </View>
+            <Text style={styles.meta}>{year}</Text>
+            <Text numberOfLines={2} style={styles.desc}>
+              {item.overview || '—'}
+            </Text>
+          </View>
+        </Pressable>
+      );
+    },
+    [navigation]
   );
 
   if (loading)
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" />
-        <Text style={styles.meta}>Loading…</Text>
+        <Text style={styles.meta}>Laden…</Text>
       </View>
     );
   if (error)
@@ -126,22 +157,23 @@ export default function HomeScreen({ navigation }) {
     );
 
   return (
-    <View style={styles.container}>
+    <View style={styles.screen}>
+      {/* Header-kaart met zoek en sorteer */}
       <HeaderControls
         query={query}
         setQuery={setQuery}
         sortKey={sortKey}
         setSortKey={setSortKey}
-        genreFilter={genreFilter}
-        setGenreFilter={setGenreFilter}
+        filterText={filterText}
+        setFilterText={setFilterText}
       />
 
       <FlashList
         data={sorted}
         keyExtractor={keyExtractor}
         renderItem={renderItem}
-        estimatedItemSize={120}
-        contentContainerStyle={{ padding: 12 }}
+        estimatedItemSize={110}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 20 }}
         keyboardShouldPersistTaps="always"
         keyboardDismissMode="none"
         removeClippedSubviews={false}
@@ -150,85 +182,214 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
+// Alleen UI van de header; memo om her-render te beperken
 const HeaderControls = React.memo(function HeaderControls({
   query,
   setQuery,
   sortKey,
   setSortKey,
-  genreFilter,
-  setGenreFilter,
+  filterText,
+  setFilterText,
 }) {
   return (
-    <View style={styles.header}>
-      <TextInput
-        placeholder="Zoek op titel/omschrijving…"
-        value={query}
-        onChangeText={setQuery}
-        style={styles.input}
-        blurOnSubmit={false}
-      />
-      <View style={styles.row}>
-        <Pressable
-          style={[styles.pill, sortKey === 'TITLE_ASC' && styles.pillActive]}
-          onPress={() => setSortKey('TITLE_ASC')}
-        >
-          <Text style={styles.pillText}>A→Z</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.pill, sortKey === 'TITLE_DESC' && styles.pillActive]}
-          onPress={() => setSortKey('TITLE_DESC')}
-        >
-          <Text style={styles.pillText}>Z→A</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.pill, sortKey === 'SCORE_DESC' && styles.pillActive]}
-          onPress={() => setSortKey('SCORE_DESC')}
-        >
-          <Text style={styles.pillText}>Score ↓</Text>
-        </Pressable>
-        <Pressable
-          style={[styles.pill, sortKey === 'SCORE_ASC' && styles.pillActive]}
-          onPress={() => setSortKey('SCORE_ASC')}
-        >
-          <Text style={styles.pillText}>Score ↑</Text>
-        </Pressable>
+    <View style={styles.headerCard}>
+      <Text style={styles.bigTitle}>FilmFinder</Text>
+
+      {/* Zoekveld */}
+      <View style={styles.searchWrap}>
+        <Text style={styles.searchIcon}>🔎</Text>
+        <TextInput
+          placeholder="Zoek op titel of omschrijving…"
+          value={query}
+          onChangeText={setQuery}
+          style={styles.searchInput}
+          placeholderTextColor="#9aa0a6"
+          blurOnSubmit={false}
+        />
       </View>
-      <TextInput
-        placeholder="Filter (vb. ‘comedy’)…"
-        value={genreFilter}
-        onChangeText={setGenreFilter}
-        style={styles.input}
-        blurOnSubmit={false}
-      />
+
+      {/* Chips rij */}
+      <View style={styles.chipsRow}>
+        <Chip label="A→Z" active={sortKey === 'TITLE_ASC'} onPress={() => setSortKey('TITLE_ASC')} />
+        <Chip label="Z→A" active={sortKey === 'TITLE_DESC'} onPress={() => setSortKey('TITLE_DESC')} />
+        <Chip
+          label="Score ↓"
+          active={sortKey === 'SCORE_DESC'}
+          onPress={() => setSortKey('SCORE_DESC')}
+        />
+        <Chip
+          label="Score ↑"
+          active={sortKey === 'SCORE_ASC'}
+          onPress={() => setSortKey('SCORE_ASC')}
+        />
+        <Chip label="Jaar ↑" active={sortKey === 'YEAR_ASC'} onPress={() => setSortKey('YEAR_ASC')} />
+        <Chip label="Jaar ↓" active={sortKey === 'YEAR_DESC'} onPress={() => setSortKey('YEAR_DESC')} />
+      </View>
+
+      {/* Extra (optioneel) tekstfilter */}
+      <View style={styles.searchWrap}>
+        <Text style={styles.searchIcon}>🧭</Text>
+        <TextInput
+          placeholder="Extra filter (bv. acteur/genre)…"
+          value={filterText}
+          onChangeText={setFilterText}
+          style={styles.searchInput}
+          placeholderTextColor="#9aa0a6"
+          blurOnSubmit={false}
+        />
+      </View>
     </View>
   );
 });
 
+function Chip({ label, active, onPress }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.chip, active && styles.chipActive]}>
+      <Text style={[styles.chipText, active && styles.chipTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+// -------- Styles (alleen opmaak aangepast) --------
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  header: { padding: 12, gap: 10 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, padding: 10 },
-  row: { flexDirection: 'row', gap: 8 },
-  pill: {
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    borderRadius: 999,
-    borderWidth: 1,
-    borderColor: '#ddd',
+  screen: {
+    flex: 1,
+    backgroundColor: '#f6f7fb',
   },
-  pillActive: { backgroundColor: '#f0f0f0' },
-  pillText: { color: '#111' },
-  card: {
+
+  // Header-kaart
+  headerCard: {
+    margin: 16,
+    padding: 16,
+    backgroundColor: '#ffffff',
+    borderRadius: 16,
+    // zachte schaduw
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowOffset: { width: 0, height: 6 },
+    shadowRadius: 12,
+    elevation: 3,
+    gap: 12,
+  },
+  bigTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#1f2937',
+    marginBottom: 4,
+  },
+
+  // Zoekveld-stijl
+  searchWrap: {
+    position: 'relative',
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
     backgroundColor: '#fafafa',
     borderRadius: 12,
-    padding: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: '#eee',
+    paddingLeft: 40,
+    paddingRight: 12,
+    height: 44,
+    justifyContent: 'center',
   },
-  title: { fontSize: 16, fontWeight: '700', marginBottom: 4 },
-  meta: { color: '#444', marginBottom: 6 },
-  desc: { color: '#333' },
+  searchIcon: {
+    position: 'absolute',
+    left: 12,
+    fontSize: 16,
+    color: '#6b7280',
+  },
+  searchInput: {
+    fontSize: 15,
+    color: '#111827',
+  },
+
+  // Chips
+  chipsRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#ffffff',
+  },
+  chipActive: {
+    backgroundColor: '#0ea5e9',
+    borderColor: '#0ea5e9',
+  },
+  chipText: {
+    color: '#374151',
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  chipTextActive: {
+    color: 'white',
+  },
+
+  // Filmkaart
+  card: {
+    flexDirection: 'row',
+    gap: 12,
+    padding: 12,
+    backgroundColor: '#ffffff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#eef0f3',
+    marginBottom: 12,
+    // subtiele schaduw
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 4 },
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  thumb: {
+    width: 70,
+    height: 105,
+    borderRadius: 8,
+    backgroundColor: '#eee',
+  },
+  thumbPlaceholder: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+  },
+  title: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#111827',
+    marginRight: 8,
+  },
+  badge: {
+    minWidth: 38,
+    height: 22,
+    borderRadius: 999,
+    backgroundColor: '#10b981',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 6,
+  },
+  badgeText: {
+    color: 'white',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  meta: {
+    color: '#6b7280',
+    marginTop: 2,
+    marginBottom: 4,
+  },
+  desc: {
+    color: '#374151',
+  },
+
+  // States
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   error: { color: 'red' },
 });
