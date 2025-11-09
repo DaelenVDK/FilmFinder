@@ -2,13 +2,11 @@
 import React, { useEffect } from 'react';
 import { View, Text, Image, StyleSheet, Linking, ScrollView, Pressable } from 'react-native';
 
-// --- Vul jouw profielgegevens hier in ---
 const FULL_NAME   = 'Daelen Vandekerckhove';
 const ROLE        = 'Student Graduaat Programmeren';
 const BIO         = 'FilmFinder is mijn examenapp. Tabs + Stack, FlashList, zoeken/sorteren en TMDB API.';
-const EMAIL       = 'jouw.email@example.com';
-const AVATAR_URL  = 'https://placehold.co/256x256?text=DV'; // evt. vervangen door eigen foto in assets
-// ----------------------------------------
+const EMAIL       = 'Vandekerckhove.daelen@gmail.com';
+const AVATAR = require('../../assets/Profile.jpg');
 
 export default function ProfileScreen() {
   useEffect(() => {
@@ -29,11 +27,13 @@ export default function ProfileScreen() {
       {/* Overlappende header-card */}
       <View style={styles.headerCard}>
         <View style={styles.avatarWrap}>
-          <Image
-            source={{ uri: AVATAR_URL }}
+            <Image
+            source={AVATAR}
             style={styles.avatar}
-          />
+            resizeMode="cover"
+            />
         </View>
+
 
         <View style={{ marginTop: 56 }}>
           <Text style={styles.name}>{FULL_NAME}</Text>

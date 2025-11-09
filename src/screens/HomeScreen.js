@@ -1,4 +1,4 @@
-// src/screens/HomeScreen.js
+// src/screens/Homescreen.js
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
@@ -11,11 +11,11 @@ import {
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 
-// --- API (zelfde data, enkel netjes geformatteerd) ---
-const TMDB_KEY = '3e7c1ad02e5fbb59e17cf46ef830821a'; // jouw sleutel
+const TMDB_KEY = '3e7c1ad02e5fbb59e17cf46ef830821a';
 const API_URL = `https://api.themoviedb.org/3/movie/popular?language=nl-BE&page=1&api_key=${TMDB_KEY}`;
+const GENRE_URL = `https://api.themoviedb.org/3/genre/movie/list?language=nl-BE&api_key=${TMDB_KEY}`;
 const IMG = {
-  thumb: (p) => `https://image.tmdb.org/t/p/w154${p}`, // kleine poster voor lijst
+  thumb: (p) => `https://image.tmdb.org/t/p/w154${p}`,
 };
 
 const SORTS = {
@@ -30,23 +30,39 @@ const SORTS = {
 export default function HomeScreen({ navigation }) {
   const [query, setQuery] = useState('');
   const [sortKey, setSortKey] = useState(SORTS.TITLE_ASC.key);
-  const [filterText, setFilterText] = useState(''); // optioneel (visueel gelaten)
+  const [filterText, setFilterText] = useState('');
 
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Fetch
+  const [genresMap, setGenresMap] = useState({});
+
   useEffect(() => {
     let alive = true;
     (async () => {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch(API_URL);
-        if (!res.ok) throw new Error('Network error');
-        const json = await res.json();
-        if (alive) setData(json.results || []);
+
+        const [genresRes, moviesRes] = await Promise.all([fetch(GENRE_URL), fetch(API_URL)]);
+        if (!genresRes.ok || !moviesRes.ok) throw new Error('Network error');
+
+        const genresJson = await genresRes.json();
+        const moviesJson = await moviesRes.json();
+
+        if (!alive) return;
+
+        const map = {};
+        (genresJson.genres || []).forEach(g => { map[g.id] = g.name; });
+        setGenresMap(map);
+
+        const enriched = (moviesJson.results || []).map(m => ({
+          ...m,
+          genre_names: (m.genre_ids || []).map(id => map[id]).filter(Boolean),
+        }));
+
+        setData(enriched);
       } catch (e) {
         if (alive) setError(e.message || 'Unknown error');
       } finally {
@@ -58,12 +74,12 @@ export default function HomeScreen({ navigation }) {
     };
   }, []);
 
-  // Filter + sort (ongewijzigde logica, netjes gestructureerd)
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     const f = filterText.trim().toLowerCase();
+
     return (data || []).filter((m) => {
-      const pool = `${m.title ?? ''} ${m.overview ?? ''}`.toLowerCase();
+      const pool = `${m.title ?? ''} ${m.overview ?? ''} ${(m.genre_names || []).join(' ')}`.toLowerCase();
       const okQuery = !q || pool.includes(q);
       const okExtra = !f || pool.includes(f);
       return okQuery && okExtra;
@@ -109,19 +125,18 @@ export default function HomeScreen({ navigation }) {
     ({ item }) => {
       const year = (item.release_date || '').slice(0, 4) || '—';
       const score = Number(item.vote_average ?? 0).toFixed(1);
+      const genres = (item.genre_names || []).join(' • ');
       return (
         <Pressable
           style={styles.card}
           onPress={() => navigation.navigate('Detail', { id: item.id, title: item.title })}
         >
-          {/* Thumbnail links */}
           {item.poster_path ? (
             <Image source={{ uri: IMG.thumb(item.poster_path) }} style={styles.thumb} />
           ) : (
             <View style={[styles.thumb, styles.thumbPlaceholder]} />
           )}
 
-          {/* Content rechts */}
           <View style={{ flex: 1 }}>
             <View style={styles.titleRow}>
               <Text style={styles.title} numberOfLines={1}>
@@ -131,7 +146,7 @@ export default function HomeScreen({ navigation }) {
                 <Text style={styles.badgeText}>{score}</Text>
               </View>
             </View>
-            <Text style={styles.meta}>{year}</Text>
+            <Text style={styles.meta}>{year}{genres ? `  •  ${genres}` : ''}</Text>
             <Text numberOfLines={2} style={styles.desc}>
               {item.overview || '—'}
             </Text>
@@ -149,6 +164,7 @@ export default function HomeScreen({ navigation }) {
         <Text style={styles.meta}>Laden…</Text>
       </View>
     );
+
   if (error)
     return (
       <View style={styles.center}>
@@ -158,7 +174,6 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={styles.screen}>
-      {/* Header-kaart met zoek en sorteer */}
       <HeaderControls
         query={query}
         setQuery={setQuery}
@@ -182,7 +197,6 @@ export default function HomeScreen({ navigation }) {
   );
 }
 
-// Alleen UI van de header; memo om her-render te beperken
 const HeaderControls = React.memo(function HeaderControls({
   query,
   setQuery,
@@ -195,7 +209,6 @@ const HeaderControls = React.memo(function HeaderControls({
     <View style={styles.headerCard}>
       <Text style={styles.bigTitle}>FilmFinder</Text>
 
-      {/* Zoekveld */}
       <View style={styles.searchWrap}>
         <Text style={styles.searchIcon}>🔎</Text>
         <TextInput
@@ -208,34 +221,25 @@ const HeaderControls = React.memo(function HeaderControls({
         />
       </View>
 
-      {/* Chips rij */}
       <View style={styles.chipsRow}>
         <Chip label="A→Z" active={sortKey === 'TITLE_ASC'} onPress={() => setSortKey('TITLE_ASC')} />
         <Chip label="Z→A" active={sortKey === 'TITLE_DESC'} onPress={() => setSortKey('TITLE_DESC')} />
-        <Chip
-          label="Score ↓"
-          active={sortKey === 'SCORE_DESC'}
-          onPress={() => setSortKey('SCORE_DESC')}
-        />
-        <Chip
-          label="Score ↑"
-          active={sortKey === 'SCORE_ASC'}
-          onPress={() => setSortKey('SCORE_ASC')}
-        />
+        <Chip label="Score ↓" active={sortKey === 'SCORE_DESC'} onPress={() => setSortKey('SCORE_DESC')} />
+        <Chip label="Score ↑" active={sortKey === 'SCORE_ASC'} onPress={() => setSortKey('SCORE_ASC')} />
         <Chip label="Jaar ↑" active={sortKey === 'YEAR_ASC'} onPress={() => setSortKey('YEAR_ASC')} />
         <Chip label="Jaar ↓" active={sortKey === 'YEAR_DESC'} onPress={() => setSortKey('YEAR_DESC')} />
       </View>
 
-      {/* Extra (optioneel) tekstfilter */}
       <View style={styles.searchWrap}>
-        <Text style={styles.searchIcon}>🧭</Text>
+        <Text style={styles.searchIcon}>🎬</Text>
         <TextInput
-          placeholder="Extra filter (bv. acteur/genre)…"
+          placeholder="Filter op genre (bv. actie, komedie, horror)…"
           value={filterText}
           onChangeText={setFilterText}
           style={styles.searchInput}
           placeholderTextColor="#9aa0a6"
           blurOnSubmit={false}
+          autoCapitalize="none"
         />
       </View>
     </View>
@@ -250,20 +254,16 @@ function Chip({ label, active, onPress }) {
   );
 }
 
-// -------- Styles (alleen opmaak aangepast) --------
 const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: '#f6f7fb',
   },
-
-  // Header-kaart
   headerCard: {
     margin: 16,
     padding: 16,
     backgroundColor: '#ffffff',
     borderRadius: 16,
-    // zachte schaduw
     shadowColor: '#000',
     shadowOpacity: 0.08,
     shadowOffset: { width: 0, height: 6 },
@@ -277,8 +277,6 @@ const styles = StyleSheet.create({
     color: '#1f2937',
     marginBottom: 4,
   },
-
-  // Zoekveld-stijl
   searchWrap: {
     position: 'relative',
     borderWidth: 1,
@@ -300,8 +298,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     color: '#111827',
   },
-
-  // Chips
   chipsRow: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -327,8 +323,6 @@ const styles = StyleSheet.create({
   chipTextActive: {
     color: 'white',
   },
-
-  // Filmkaart
   card: {
     flexDirection: 'row',
     gap: 12,
@@ -338,7 +332,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#eef0f3',
     marginBottom: 12,
-    // subtiele schaduw
     shadowColor: '#000',
     shadowOpacity: 0.06,
     shadowOffset: { width: 0, height: 4 },
@@ -388,8 +381,6 @@ const styles = StyleSheet.create({
   desc: {
     color: '#374151',
   },
-
-  // States
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 },
   error: { color: 'red' },
 });

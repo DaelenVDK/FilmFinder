@@ -1,3 +1,4 @@
+// src/screens/DetailScreen.js
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -18,7 +19,6 @@ const IMG = {
 };
 
 const SCREEN_W = Dimensions.get('window').width;
-// 16:9 container zodat we NIET croppen en volledig beeld tonen (contain)
 const BANNER_H = Math.round((SCREEN_W * 9) / 16);
 
 export default function DetailScreen({ route }) {
@@ -55,12 +55,14 @@ export default function DetailScreen({ route }) {
         <Text style={styles.meta}>Loading…</Text>
       </View>
     );
+
   if (error)
     return (
       <View style={styles.center}>
         <Text style={styles.error}>Error: {error}</Text>
       </View>
     );
+
   if (!data)
     return (
       <View style={styles.center}>
@@ -74,7 +76,6 @@ export default function DetailScreen({ route }) {
 
   return (
     <ScrollView contentContainerStyle={styles.screen}>
-      {/* Banner */}
       <View style={styles.bannerBox}>
         {backdrop ? (
           <Image
@@ -82,14 +83,13 @@ export default function DetailScreen({ route }) {
               uri: data.backdrop_path ? IMG.backdrop(backdrop) : IMG.poster(backdrop),
             }}
             style={styles.bannerImg}
-            resizeMode="contain" // belangrijk: niet croppen
+            resizeMode="contain"
           />
         ) : (
           <View style={[styles.bannerImg, { backgroundColor: '#111' }]} />
         )}
       </View>
 
-      {/* Header card */}
       <View style={styles.card}>
         <View style={styles.headerRow}>
           {data.poster_path ? (
@@ -104,7 +104,6 @@ export default function DetailScreen({ route }) {
               {year} • <Text style={styles.badgeScore}>Score {score}</Text>
             </Text>
 
-            {/* Genres as chips */}
             <View style={styles.chipsWrap}>
               {Array.isArray(data.genres) && data.genres.length ? (
                 data.genres.map((g) => (
@@ -119,7 +118,6 @@ export default function DetailScreen({ route }) {
               )}
             </View>
 
-            {/* Meta grid */}
             <View style={styles.metaRow}>
               <View style={styles.metaCell}>
                 <Text style={styles.metaLabel}>Speelduur</Text>
@@ -144,7 +142,6 @@ export default function DetailScreen({ route }) {
         </View>
       </View>
 
-      {/* Omschrijving card */}
       {data.overview ? (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Omschrijving</Text>
@@ -152,7 +149,6 @@ export default function DetailScreen({ route }) {
         </View>
       ) : null}
 
-      {/* Extra info card (optioneel, blijft leeg als geen data) */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Extra</Text>
         <View style={styles.extraList}>
@@ -166,7 +162,6 @@ export default function DetailScreen({ route }) {
   );
 }
 
-/** Kleine helper voor nette rijtjes */
 function InfoRow({ label, value }) {
   return (
     <View style={styles.infoRow}>
@@ -191,7 +186,6 @@ function formatMoney(n) {
 }
 
 const styles = StyleSheet.create({
-  // scherm & basis
   screen: {
     padding: 16,
     backgroundColor: '#F6F7FB',
@@ -206,8 +200,6 @@ const styles = StyleSheet.create({
   },
   error: { color: '#D00', fontWeight: '600' },
   meta: { color: '#667085', marginTop: 8 },
-
-  // banner
   bannerBox: {
     width: '100%',
     height: BANNER_H,
@@ -219,25 +211,20 @@ const styles = StyleSheet.create({
   },
   bannerImg: {
     width: '100%',
-    height: '100%', // i.c.m. contain toont de hele afbeelding
+    height: '100%',
   },
-
-  // cards
   card: {
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
     padding: 14,
     borderWidth: 1,
     borderColor: '#ECEFF5',
-    // zachte schaduw (iOS/Android)
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.06,
     shadowRadius: 10,
     elevation: 2,
   },
-
-  // header
   headerRow: { flexDirection: 'row', gap: 14 },
   poster: {
     width: 112,
@@ -253,12 +240,7 @@ const styles = StyleSheet.create({
   },
   title: { fontSize: 22, fontWeight: '800', color: '#0B1220', marginBottom: 4 },
   kicker: { color: '#667085', marginBottom: 10 },
-  badgeScore: {
-    color: '#0B1220',
-    fontWeight: '700',
-  },
-
-  // chips (genres)
+  badgeScore: { color: '#0B1220', fontWeight: '700' },
   chipsWrap: {
     flexDirection: 'row',
     flexWrap: 'wrap',
@@ -274,8 +256,6 @@ const styles = StyleSheet.create({
     borderColor: '#E0E7FF',
   },
   chipText: { color: '#1D4ED8', fontWeight: '600' },
-
-  // meta grid
   metaRow: {
     flexDirection: 'row',
     borderTopWidth: 1,
@@ -299,8 +279,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
   },
   metaValue: { fontSize: 16, fontWeight: '700', color: '#0B1220' },
-
-  // secties
   sectionTitle: {
     fontSize: 18,
     fontWeight: '800',
@@ -311,8 +289,6 @@ const styles = StyleSheet.create({
     color: '#384152',
     lineHeight: 20,
   },
-
-  // extra info lijst
   extraList: { gap: 8, marginTop: 2 },
   infoRow: {
     flexDirection: 'row',
